@@ -7,8 +7,8 @@ Description: >-
 Parameters:
   VpcCidr:
     Type: String
-    Default: 10.0.0.0/16
     Description: CIDR for the VPC
+    Default: 10.0.0.0/16
   PublicSubnet1Cidr:
     Type: String
     Default: 10.0.0.0/24
@@ -21,6 +21,7 @@ Parameters:
   PrivateSubnet2Cidr:
     Type: String
     Default: 10.0.11.0/24
+    
   InstanceType:
     Type: String
     Default: t3.micro
@@ -29,7 +30,7 @@ Parameters:
     Type: Number
     Default: 1
     MinValue: 1
-    MaxValue: 10
+    MaxValue: 5
   MinSize:
     Type: Number
     Default: 1
@@ -327,7 +328,7 @@ Resources:
             echo ""
             IP=$(curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/local-ipv4 || echo "unknown")
             ID=$(curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/instance-id || echo "unknown")
-            QS="${QUERY_STRING}"
+            QS="${!QUERY_STRING}"
             if [[ "$QS" == *"stress=true"* ]]; then
               nohup bash -c '(for i in $(seq 1 $(nproc)); do yes > /dev/null & done; sleep 120; pkill yes) >/dev/null 2>&1' &
               MSG="CPU stress started for ~2 minutes."
@@ -338,8 +339,8 @@ Resources:
             <!doctype html>
             <html><head><meta charset="utf-8"><title>ASG Demo</title></head>
             <body style="font-family: sans-serif">
-            <h1>Hello from ${IP} / ${ID}</h1>
-            <p>${MSG}</p>
+            <h1>Hello from ${!IP} / ${!ID}</h1>
+            <p>${!MSG}</p>
             <form method="GET" action="/cgi-bin/app.sh">
               <input type="hidden" name="stress" value="true"/>
               <button type="submit">Stress CPU (~2 min)</button>
