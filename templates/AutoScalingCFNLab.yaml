@@ -1,14 +1,1 @@
-template-file-path: templates/AutoScalingCFNLab.yaml
-parameters:
-  PrivateSubnet1Cidr: 10.0.10.0/24
-  ALBHealthCheckPath: /
-  MinSize: '1'
-  PublicSubnet2Cidr: 10.0.1.0/24
-  VpcCidr: 10.0.0.0/16
-  PrivateSubnet2Cidr: 10.0.11.0/24
-  DesiredCapacity: '1'
-  TargetCpuUtilization: '30'
-  PublicSubnet1Cidr: 10.0.0.0/24
-  InstanceType: t3.micro
-  MaxSize: '4'
-tags: {}
+
