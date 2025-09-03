@@ -163,7 +163,7 @@ Resources:
         - Key: Name
           Value: !Sub '${AWS::StackName}-natgw'
 
-  PrivateRouteTable1:
+  PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
@@ -171,25 +171,10 @@ Resources:
         - Key: Name
           Value: !Sub '${AWS::StackName}-private-rt-a'
 
-  PrivateRouteTable2:
-    Type: AWS::EC2::RouteTable
+  PrivateRoute:
+    Type: 'AWS::EC2:Route'
     Properties:
-      VpcId: !Ref VPC
-      Tags:
-        - Key: Name
-          Value: !Sub '${AWS::StackName}-private-rt-b'
-
-  PrivateRoute1Default:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable1
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway
-
-  PrivateRoute2Default:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable2
+      RoutTableId: !Ref PrivateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGateway
 
@@ -197,13 +182,13 @@ Resources:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable1
+      RouteTableId: !Ref PrivateRouteTable
 
   PrivateSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable2
+      RouteTableId: !Ref PrivateRouteTable
 
   ALBSG:
     Type: AWS::EC2::SecurityGroup
@@ -287,6 +272,26 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
 
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: ec2.amazonaws.com
+              Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
   LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -294,6 +299,8 @@ Resources:
       LaunchTemplateData:
         ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
         InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
         SecurityGroupIds:
           - !Ref InstanceSG
         TagSpecifications:
@@ -326,8 +333,8 @@ Resources:
             #!/bin/bash
             echo "Content-type: text/html"
             echo ""
-            IP=$(curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/local-ipv4 || echo "unknown")
-            ID=$(curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/instance-id || echo "unknown")
+            IP=$( (curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/local-ipv4 || echo "unknown"))
+            ID=$( (curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/instance-id || echo "unknown"))
             QS="${!QUERY_STRING}"
             if [[ "$QS" == *"stress=true"* ]]; then
               nohup bash -c '(for i in $(seq 1 $(nproc)); do yes > /dev/null & done; sleep 120; pkill yes) >/dev/null 2>&1' &
