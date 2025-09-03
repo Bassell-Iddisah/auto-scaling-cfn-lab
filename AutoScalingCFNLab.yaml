@@ -15,7 +15,6 @@ Resources:
         - Key: Name
           Value: asg-lab-vpc
 
-
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
@@ -28,6 +27,9 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
+      Tags:
+        - Key: Name
+          Value: Vpcgatewayattachment
 
   PublicSubnet1:
     Type: AWS::EC2::Subnet
