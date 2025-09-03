@@ -347,3 +347,6 @@ Outputs:
   ASGName:
     Description: Auto Scaling Group Name
     Value: !Ref AutoScalingGroup
+  CPULoadTestURL:
+    Description: URL to trigger the CPU stress test
+    Value: !Sub 'http://${ALB.DNSName}/cgi-bin/app.sh?stress=true'
