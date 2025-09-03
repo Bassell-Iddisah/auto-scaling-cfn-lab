@@ -4,7 +4,6 @@ Description: >-
   scales out when ASG average CPU > TargetCpuUtilization (default 30%). Apache
   serves a CGI page showing IP/InstanceID with a button that stresses CPU for ~2 minutes.
 
-
 Parameters:
   VpcCidr:
     Type: String
