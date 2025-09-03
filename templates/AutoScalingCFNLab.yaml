@@ -1,72 +1,26 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   Auto Scaling Group in private subnets behind a public ALB. Target tracking
-  scales out when ASG average CPU > TargetCpuUtilization (default 30%). Apache
+  scales out when ASG average CPU > 30%. Apache
   serves a CGI page showing IP/InstanceID with a button that stresses CPU for ~2 minutes.
-
-Parameters:
-  VpcCidr:
-    Type: String
-    Description: CIDR for the VPC
-    Default: 10.0.0.0/16
-  PublicSubnet1Cidr:
-    Type: String
-    Default: 10.0.0.0/24
-  PublicSubnet2Cidr:
-    Type: String
-    Default: 10.0.1.0/24
-  PrivateSubnet1Cidr:
-    Type: String
-    Default: 10.0.10.0/24
-  PrivateSubnet2Cidr:
-    Type: String
-    Default: 10.0.11.0/24
-    
-  InstanceType:
-    Type: String
-    Default: t3.micro
-    Description: EC2 instance type for web servers
-  DesiredCapacity:
-    Type: Number
-    Default: 1
-    MinValue: 1
-    MaxValue: 5
-  MinSize:
-    Type: Number
-    Default: 1
-    MinValue: 1
-  MaxSize:
-    Type: Number
-    Default: 4
-    MinValue: 1
-    MaxValue: 20
-  TargetCpuUtilization:
-    Type: Number
-    Default: 30
-    MinValue: 10
-    MaxValue: 90
-    Description: Target ASG average CPU % for target-tracking policy
-  ALBHealthCheckPath:
-    Type: String
-    Default: /
 
 Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: !Ref VpcCidr
+      CidrBlock: 10.0.0.0/16
       EnableDnsSupport: true
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-vpc'
+          Value: asg-lab-vpc
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-igw'
+          Value: asg-lab-igw
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -78,45 +32,45 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref PublicSubnet1Cidr
+      CidrBlock: 10.0.0.0/24
       MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-public-a'
+          Value: asg-lab-public-a
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref PublicSubnet2Cidr
+      CidrBlock: 10.0.1.0/24
       MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-public-b'
+          Value: asg-lab-public-b
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref PrivateSubnet1Cidr
+      CidrBlock: 10.0.10.0/24
       MapPublicIpOnLaunch: false
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-private-a'
+          Value: asg-lab-private-a
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref PrivateSubnet2Cidr
+      CidrBlock: 10.0.11.0/24
       MapPublicIpOnLaunch: false
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-private-b'
+          Value: asg-lab-private-b
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -124,7 +78,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-public-rt'
+          Value: asg-lab-public-rt
 
   PublicRoute:
     Type: AWS::EC2::Route
@@ -152,7 +106,7 @@ Resources:
       Domain: vpc
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-nat-eip'
+          Value: asg-lab-nat-eip
 
   NatGateway:
     Type: AWS::EC2::NatGateway
@@ -161,20 +115,35 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-natgw'
+          Value: asg-lab-natgw
 
-  PrivateRouteTable:
+  PrivateRouteTable1:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-private-rt-a'
+          Value: asg-lab-private-rt-a
 
-  PrivateRoute:
-    Type: 'AWS::EC2:Route'
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
     Properties:
-      RoutTableId: !Ref PrivateRouteTable
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: asg-lab-private-rt-b
+
+  PrivateRoute1Default:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateRoute2Default:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGateway
 
@@ -182,13 +151,13 @@ Resources:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable1
 
   PrivateSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable2
 
   ALBSG:
     Type: AWS::EC2::SecurityGroup
@@ -207,7 +176,7 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-alb-sg'
+          Value: asg-lab-alb-sg
 
   InstanceSG:
     Type: AWS::EC2::SecurityGroup
@@ -226,12 +195,12 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-instance-sg'
+          Value: asg-lab-instance-sg
 
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub '${AWS::StackName}-alb'
+      Name: asg-lab-alb
       Scheme: internet-facing
       Type: application
       Subnets:
@@ -241,17 +210,17 @@ Resources:
         - !Ref ALBSG
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-alb'
+          Value: asg-lab-alb
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub '${AWS::StackName}-tg'
+      Name: asg-lab-tg
       Port: 80
       Protocol: HTTP
       VpcId: !Ref VPC
       TargetType: instance
-      HealthCheckPath: !Ref ALBHealthCheckPath
+      HealthCheckPath: /
       HealthCheckProtocol: HTTP
       Matcher:
         HttpCode: '200'
@@ -260,7 +229,7 @@ Resources:
           Value: round_robin
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-tg'
+          Value: asg-lab-tg
 
   Listener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -272,42 +241,20 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
 
-  InstanceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service: ec2.amazonaws.com
-              Action: sts:AssumeRole
-      Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-
-  InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Roles:
-        - !Ref InstanceRole
-
   LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: !Sub '${AWS::StackName}-lt'
+      LaunchTemplateName: asg-lab-lt
       LaunchTemplateData:
         ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
-        InstanceType: !Ref InstanceType
-        IamInstanceProfile:
-          Arn: !GetAtt InstanceProfile.Arn
+        InstanceType: t3.micro
         SecurityGroupIds:
           - !Ref InstanceSG
         TagSpecifications:
           - ResourceType: instance
             Tags:
               - Key: Name
-                Value: !Sub '${AWS::StackName}-web'
+                Value: asg-lab-web
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
@@ -333,8 +280,8 @@ Resources:
             #!/bin/bash
             echo "Content-type: text/html"
             echo ""
-            IP=$( (curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/local-ipv4 || echo "unknown"))
-            ID=$( (curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/instance-id || echo "unknown"))
+            IP=$(curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/local-ipv4 || echo "unknown")
+            ID=$(curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/instance-id || echo "unknown")
             QS="${!QUERY_STRING}"
             if [[ "$QS" == *"stress=true"* ]]; then
               nohup bash -c '(for i in $(seq 1 $(nproc)); do yes > /dev/null & done; sleep 120; pkill yes) >/dev/null 2>&1' &
@@ -364,9 +311,9 @@ Resources:
       VPCZoneIdentifier:
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
-      MinSize: !Ref MinSize
-      MaxSize: !Ref MaxSize
-      DesiredCapacity: !Ref DesiredCapacity
+      MinSize: 1
+      MaxSize: 4
+      DesiredCapacity: 1
       HealthCheckType: ELB
       HealthCheckGracePeriod: 300
       TargetGroupARNs:
@@ -376,7 +323,7 @@ Resources:
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
       Tags:
         - Key: Name
-          Value: !Sub '${AWS::StackName}-web'
+          Value: asg-lab-web
           PropagateAtLaunch: true
 
   CPUScalingPolicy:
@@ -387,7 +334,7 @@ Resources:
       TargetTrackingConfiguration:
         PredefinedMetricSpecification:
           PredefinedMetricType: ASGAverageCPUUtilization
-        TargetValue: !Ref TargetCpuUtilization
+        TargetValue: 30
         DisableScaleIn: false
 
 Outputs:
@@ -396,7 +343,7 @@ Outputs:
     Value: !GetAtt ALB.DNSName
   TargetGroupName:
     Description: Name of the Target Group (for reference)
-    Value: !Ref TargetGroup
+    Value: asg-lab-tg
   ASGName:
     Description: Auto Scaling Group Name
     Value: !Ref AutoScalingGroup
